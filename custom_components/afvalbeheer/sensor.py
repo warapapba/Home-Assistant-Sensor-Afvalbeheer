@@ -268,6 +268,8 @@ class WasteData(object):
             self.collector = OphaalkalenderCollector(self.hass, self.waste_collector, self.postcode, self.street_name, self.street_number, self.suffix)
         elif self.waste_collector in OPZET_COLLECTOR_URLS.keys():
             self.collector = OpzetCollector(self.hass, self.waste_collector, self.postcode, self.street_number, self.suffix)
+        elif self.waste_collector == "westland":
+            self.collector = WestlandCollector(self.hass, self.waste_collector, self.postcode, self.street_number, self.suffix)
         else:
             _LOGGER.error("Waste collector not found!")
 
@@ -556,6 +558,61 @@ class OpzetCollector(WasteCollector):
                     icon_data=item['icon_data']
                 )
                 self.collections.add(collection)
+
+        except requests.exceptions.RequestException as exc:
+            _LOGGER.error('Error occurred while fetching data: %r', exc)
+            return False
+
+
+class WestlandCollector(WasteCollector):
+    WASTE_TYPE_MAPPING = {
+        # 'BRANCHES': WASTE_TYPE_BRANCHES,
+        # 'BULKLITTER': WASTE_TYPE_BULKLITTER,
+        # 'BULKYGARDENWASTE': WASTE_TYPE_BULKYGARDENWASTE,
+        # 'GLASS': WASTE_TYPE_GLASS,
+        # 'GREEN': WASTE_TYPE_GREEN,
+        # 'GREY': WASTE_TYPE_GREY,
+        # 'KCA': WASTE_TYPE_KCA,
+        # 'PACKAGES': WASTE_TYPE_PACKAGES,
+        # 'PAPER': WASTE_TYPE_PAPER,
+        # 'TEXTILE': WASTE_TYPE_TEXTILE,
+        # 'TREE': WASTE_TYPE_TREE,
+    }
+
+    def __init__(self, hass, waste_collector, postcode, street_number, suffix):
+        super(WestlandCollector, self).__init__(hass, waste_collector, postcode, street_number, suffix)
+        self.main_url = "https://huisvuilkalender.gemeentewestland.nl"
+
+    def __get_data(self):
+        data = {
+            "query": "",
+            "postcode": self.postcode,
+            "huisnummer": self.street_number,
+        }
+        headers = {
+            "Origin": self.main_url,
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Referer": "{}/huisvuilkalender?dummy=0.9778403611955824".format(self.main_url),
+            "X-Requested-With": "XMLHttpRequest",
+            "Connection": "keep-alive",
+        }
+
+        response = requests.post(
+            "{}/huisvuilkalender/Huisvuilkalender/get-huisvuilkalender-ajax".format(self.main_url), verify=False,
+            data=data, headers=headers)
+        return response
+
+    async def update(self):
+        _LOGGER.debug('Updating Waste collection dates using Rest API')
+
+        self.collections.remove_all()
+
+        try:
+            r = await self.hass.async_add_executor_job(self.__get_data)
+            response = r.json()
+
+            _LOGGER.error(response)
 
         except requests.exceptions.RequestException as exc:
             _LOGGER.error('Error occurred while fetching data: %r', exc)
