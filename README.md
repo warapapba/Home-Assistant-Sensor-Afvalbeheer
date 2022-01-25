@@ -93,6 +93,7 @@ Choose your collector from this list:
   - Waardlanden
   - Westland
   - ZRD
+  - dfm (De Fryske Marren)
 
 ### Resources
 ```
